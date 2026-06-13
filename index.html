@@ -5,602 +5,547 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kehadiran Asrama SKPK</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
-        .status-hadir { background-color: #dcfce7; color: #166534; }
-        .status-tidak-hadir { background-color: #fee2e2; color: #991b1b; }
-        .status-cuti { background-color: #fef9c3; color: #854d0e; }
-        .status-pulang { background-color: #f3e8ff; color: #6b21a8; }
+        /* Loading Overlay Style */
+        #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Kod Warna Status */
+        .status-hadir { background-color: #d1fae5; color: #065f46; border-color: #10b981; }
+        .status-tidak-hadir { background-color: #fee2e2; color: #991b1b; border-color: #ef4444; }
+        .status-cuti { background-color: #fef3c7; color: #92400e; border-color: #f59e0b; }
+        .status-pulang { background-color: #f3e8ff; color: #6b21a8; border-color: #a855f7; }
+        .status-default { background-color: #f3f4f6; color: #374151; border-color: #d1d5db; }
         
-        /* Loading Overlay */
-        #loading-overlay { display: none; }
-        #loading-overlay.active { display: flex; }
-        
-        /* Print Styles */
-        @media print {
-            .no-print { display: none !important; }
-            body { background-color: white; padding: 0; margin: 0; }
-            .print-container { width: 100%; padding: 0; margin: 0; }
-            table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
-            tr { page-break-inside: avoid; page-break-after: auto; }
-        }
+        /* Table sticky column for mobile */
+        .sticky-col { position: sticky; left: 0; background-color: white; z-index: 10; box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1); }
     </style>
 </head>
-<body class="text-gray-800">
+<body class="bg-gray-100 font-sans">
 
+    <!-- SILA MASUKKAN WEB APP URL GOOGLE SCRIPT CIKGU DI SINI -->
     <script>
-        // =========================================================================
-        // PENTING: MASUKKAN URL WEB APP GOOGLE APPS SCRIPT ANDA DI SINI
-        // =========================================================================
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwd0QaKdwrOrP2GRtcam7WPgI04TFAd_suJ7QGAP_3ptDGz8U-JZfibEyfqCROI2Hn87A/exec"; 
-        
-        // State variables
-        let appData = { murid: [], kehadiran: [] };
-        let isAdmin = false;
-        let currentDate = new Date();
-        let selectedBulan = currentDate.getMonth() + 1; // 1-12
-        let selectedTahun = currentDate.getFullYear();
-        let selectedTarikh = currentDate.toISOString().split('T')[0];
-
-        // Constants
-        const BULAN_NAMES = ["Januari", "Februari", "Mac", "April", "Mei", "Jun", "Julai", "Ogos", "September", "Oktober", "November", "Disember"];
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec";
     </script>
 
     <!-- Loading Overlay -->
-    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex-col items-center justify-center text-white">
-        <i class="fas fa-circle-notch fa-spin fa-3x mb-4"></i>
-        <p class="text-xl font-semibold" id="loading-text">Menyegerak Data...</p>
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <p class="mt-4 text-blue-600 font-semibold" id="loadingText">Menyegerakkan data...</p>
     </div>
 
-    <!-- Header -->
-    <header class="bg-blue-800 text-white shadow-md p-4 no-print">
-        <div class="container mx-auto flex justify-between items-center">
-            <div>
-                <h1 class="text-xl md:text-2xl font-bold">Kehadiran MBPK</h1>
-                <p class="text-sm text-blue-200">Asrama SK Pendidikan Khas</p>
-            </div>
-            <div>
-                <button id="btnLogin" onclick="toggleLogin()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm transition font-medium">
-                    <i class="fas fa-lock mr-2"></i>Log Masuk Pentadbir
-                </button>
-                <div id="adminBadge" class="hidden text-yellow-300 font-bold text-sm">
-                    <i class="fas fa-user-shield mr-1"></i> Mode Pentadbir Aktif
-                    <button onclick="logoutAdmin()" class="ml-3 text-white underline font-normal text-xs">Log Keluar</button>
-                </div>
-            </div>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
+            <!-- Logo telah dibuang dari sini -->
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">SISTEM KEHADIRAN MBPK</h1>
+            <h2 class="text-lg text-gray-600 mb-6">Asrama SK Pendidikan Khas</h2>
+            
+            <button onclick="loginAs('pengguna')" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded mb-4 shadow transition">Log Masuk Pengguna (Guru/Warden)</button>
+            <hr class="my-4">
+            <p class="text-sm text-gray-500 mb-2">Akses Pentadbir (Ketua Warden)</p>
+            <input type="text" id="adminUser" placeholder="Username" class="w-full border p-2 rounded mb-2 text-center">
+            <input type="password" id="adminPass" placeholder="Password" class="w-full border p-2 rounded mb-4 text-center">
+            <button onclick="loginAs('admin')" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-4 rounded shadow transition">Log Masuk Pentadbir</button>
         </div>
-    </header>
+    </div>
 
-    <!-- Navigation Tabs -->
-    <nav class="bg-white shadow-sm sticky top-0 z-40 no-print">
-        <div class="container mx-auto flex overflow-x-auto">
-            <button onclick="switchTab('tab-kehadiran')" id="nav-kehadiran" class="tab-btn tab-active px-6 py-4 whitespace-nowrap text-sm focus:outline-none">
-                <i class="fas fa-calendar-check mr-2"></i>Harian
-            </button>
-            <button onclick="switchTab('tab-statistik')" id="nav-statistik" class="tab-btn px-6 py-4 whitespace-nowrap text-sm focus:outline-none text-gray-500 hover:text-blue-600">
-                <i class="fas fa-chart-bar mr-2"></i>Statistik & Laporan
-            </button>
-            <button onclick="switchTab('tab-murid')" id="nav-murid" class="tab-btn px-6 py-4 whitespace-nowrap text-sm focus:outline-none text-gray-500 hover:text-blue-600">
-                <i class="fas fa-users mr-2"></i>Senarai Murid
-            </button>
+    <!-- Main Dashboard -->
+    <div id="dashboardScreen" class="hidden min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+            <div>
+                <h1 class="font-bold text-lg md:text-xl">Kehadiran Asrama SKPK</h1>
+                <p class="text-xs md:text-sm text-blue-100">Mod: <span id="userRoleDisplay" class="font-semibold uppercase"></span></p>
+            </div>
+            <button onclick="logout()" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm font-semibold shadow">Log Keluar</button>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="bg-white shadow flex justify-around p-2 text-sm md:text-base font-semibold text-gray-600">
+            <button onclick="switchTab('tabSenarai')" id="btnSenarai" class="p-2 border-b-4 border-blue-600 text-blue-600 w-full">Senarai Murid</button>
+            <button onclick="switchTab('tabKehadiran')" id="btnKehadiran" class="p-2 border-b-4 border-transparent hover:text-blue-600 w-full">Kehadiran</button>
+            <button onclick="switchTab('tabStatistik')" id="btnStatistik" class="p-2 border-b-4 border-transparent hover:text-blue-600 w-full">Statistik</button>
         </div>
-    </nav>
 
-    <!-- Main Content Area -->
-    <main class="container mx-auto p-4 pb-20 print-container" id="main-content">
-        
-        <!-- TAB 1: KEHADIRAN HARIAN -->
-        <div id="tab-kehadiran" class="tab-content block no-print">
-            <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
-                <h2 class="text-lg font-bold mb-4 text-gray-800">Tanda Kehadiran</h2>
-                <div class="flex flex-col md:flex-row gap-4 items-center mb-6 bg-gray-50 p-4 rounded-lg">
-                    <label class="font-semibold text-gray-700">Pilih Tarikh:</label>
-                    <input type="date" id="inputTarikh" class="border p-2 rounded-lg w-full md:w-auto" onchange="changeTarikh()">
-                    <button onclick="loadDataFromServer()" class="ml-auto bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded-lg text-sm transition">
-                        <i class="fas fa-sync-alt mr-1"></i> Segar Semula
-                    </button>
+        <!-- Content Area -->
+        <main class="flex-grow p-4 md:p-6 mx-auto w-full max-w-5xl">
+            
+            <!-- TAB: SENARAI MURID -->
+            <div id="tabSenarai" class="bg-white rounded-lg shadow p-4 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b pb-2">Senarai Murid Asrama</h2>
+                
+                <div class="flex gap-2 mb-4 bg-gray-50 p-3 rounded border">
+                    <input type="text" id="newNama" placeholder="Nama Penuh Murid" class="flex-grow border p-2 rounded text-sm uppercase">
+                    <input type="text" id="newTahun" placeholder="Tahun/Kelas" class="w-1/3 border p-2 rounded text-sm uppercase">
+                    <button onclick="tambahMurid()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-bold">+</button>
                 </div>
 
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="bg-gray-100 text-gray-700">
-                                <th class="p-3 border-b w-10 text-center">No</th>
-                                <th class="p-3 border-b">Nama Murid</th>
-                                <th class="p-3 border-b">Tahun / Folder</th>
-                                <th class="p-3 border-b text-center">Status Kehadiran</th>
+                            <tr class="bg-gray-100 text-gray-700 text-sm">
+                                <th class="p-2 border w-12 text-center">Bil</th>
+                                <th class="p-2 border">Nama Murid</th>
+                                <th class="p-2 border text-center">Tahun/Folder</th>
+                                <th class="p-2 border text-center admin-only hidden">Tindakan</th>
                             </tr>
                         </thead>
-                        <tbody id="tbody-kehadiran">
-                            <!-- Data injected via JS -->
+                        <tbody id="tableSenaraiMurid" class="text-sm">
+                            <!-- Injected via JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
 
-        <!-- TAB 2: STATISTIK & LAPORAN -->
-        <div id="tab-statistik" class="tab-content hidden">
-            <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
-                
-                <div class="flex flex-col md:flex-row justify-between items-center mb-6 no-print gap-4">
-                    <h2 class="text-lg font-bold text-gray-800">Statistik Bulanan</h2>
-                    <div class="flex items-center gap-3">
-                        <select id="selectBulan" class="border p-2 rounded-lg" onchange="renderStatistik()">
-                            <!-- Bulan injected via JS -->
-                        </select>
-                        <select id="selectTahun" class="border p-2 rounded-lg" onchange="renderStatistik()">
-                            <!-- Tahun injected via JS -->
-                        </select>
-                        <button id="btnPrint" onclick="printLaporan()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
-                            <i class="fas fa-print mr-2"></i>Cetak PDF
+            <!-- TAB: KEHADIRAN -->
+            <div id="tabKehadiran" class="hidden bg-white rounded-lg shadow p-4 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-4 border-b pb-4 gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold">Rekod Kehadiran</h2>
+                        <p class="text-sm text-gray-500">Pilih tarikh, tetapkan status murid. <span class="text-red-500 font-bold">Wajib klik butang Simpan!</span></p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <input type="date" id="tarikhKehadiran" class="border-2 border-blue-400 p-2 rounded font-bold text-gray-700 w-full md:w-auto">
+                        <!-- BUTANG SIMPAN PUKAL (Wajib Klik) -->
+                        <button onclick="simpanSemuaKehadiran()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow whitespace-nowrap">
+                            💾 Simpan Rekod
                         </button>
                     </div>
                 </div>
 
-                <!-- Rumusan Kad -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-green-50 border border-green-100 p-4 rounded-xl text-center">
-                        <p class="text-sm text-green-700 font-semibold mb-1">Jumlah Hadir</p>
-                        <p class="text-2xl font-bold text-green-800" id="stat-hadir">0</p>
-                    </div>
-                    <div class="bg-red-50 border border-red-100 p-4 rounded-xl text-center">
-                        <p class="text-sm text-red-700 font-semibold mb-1">Tidak Hadir</p>
-                        <p class="text-2xl font-bold text-red-800" id="stat-th">0</p>
-                    </div>
-                    <div class="bg-yellow-50 border border-yellow-100 p-4 rounded-xl text-center">
-                        <p class="text-sm text-yellow-700 font-semibold mb-1">Cuti</p>
-                        <p class="text-2xl font-bold text-yellow-800" id="stat-cuti">0</p>
-                    </div>
-                    <div class="bg-purple-50 border border-purple-100 p-4 rounded-xl text-center">
-                        <p class="text-sm text-purple-700 font-semibold mb-1">Pulang Bermalam</p>
-                        <p class="text-2xl font-bold text-purple-800" id="stat-pulang">0</p>
-                    </div>
-                </div>
-
-                <!-- Jadual Matriks Kalendar Harian -->
-                <div class="mt-8">
-                    <h3 class="font-bold text-gray-800 mb-4">Jadual Kehadiran Terperinci</h3>
-                    <div class="overflow-x-auto border border-gray-200 rounded-lg pb-2">
-                        <table class="w-full text-sm text-left whitespace-nowrap">
-                            <thead class="bg-gray-100" id="thead-matriks">
-                                <!-- Calendar headers injected via JS -->
-                            </thead>
-                            <tbody id="tbody-matriks" class="divide-y divide-gray-200">
-                                <!-- Matrix data injected via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-4 flex gap-4 text-xs text-gray-600 justify-center flex-wrap no-print">
-                        <span class="flex items-center"><div class="w-3 h-3 bg-green-500 rounded-full mr-1"></div> (H) Hadir</span>
-                        <span class="flex items-center"><div class="w-3 h-3 bg-red-500 rounded-full mr-1"></div> (TH) Tidak Hadir</span>
-                        <span class="flex items-center"><div class="w-3 h-3 bg-yellow-400 rounded-full mr-1"></div> (C) Cuti</span>
-                        <span class="flex items-center"><div class="w-3 h-3 bg-purple-500 rounded-full mr-1"></div> (P) Pulang</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 3: SENARAI MURID -->
-        <div id="tab-murid" class="tab-content hidden no-print">
-            <div class="bg-white rounded-xl shadow-sm p-5">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-bold text-gray-800">Senarai Murid Asrama</h2>
-                </div>
-
-                <div class="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100 flex flex-col md:flex-row gap-3 items-end">
-                    <div class="flex-1 w-full">
-                        <label class="block text-sm text-gray-600 mb-1">Nama Penuh Murid</label>
-                        <input type="text" id="newMuridNama" placeholder="Contoh: Ahmad bin Abu" class="w-full border p-2 rounded-lg">
-                    </div>
-                    <div class="w-full md:w-1/3">
-                        <label class="block text-sm text-gray-600 mb-1">Tahun / Folder</label>
-                        <input type="text" id="newMuridTahun" placeholder="Contoh: Tahun 1 / Bestari" class="w-full border p-2 rounded-lg">
-                    </div>
-                    <button onclick="tambahMurid()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg transition w-full md:w-auto h-10 font-medium">
-                        + Tambah
-                    </button>
-                </div>
-
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="bg-gray-100 text-gray-700">
-                                <th class="p-3 border-b w-10 text-center">No</th>
-                                <th class="p-3 border-b">Nama Murid</th>
-                                <th class="p-3 border-b">Tahun / Folder</th>
-                                <th class="p-3 border-b text-center w-20 admin-only hidden">Tindakan</th>
+                            <tr class="bg-gray-100 text-gray-700 text-sm">
+                                <th class="p-2 border w-12 text-center">Bil</th>
+                                <th class="p-2 border">Nama Murid</th>
+                                <th class="p-2 border text-center w-48">Status Kehadiran</th>
                             </tr>
                         </thead>
-                        <tbody id="tbody-murid">
-                            <!-- Data injected via JS -->
+                        <tbody id="tableRekodKehadiran" class="text-sm">
+                            <!-- Injected via JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
-    </main>
 
-    <!-- Footer -->
-    <footer class="text-center p-6 text-gray-500 text-sm mt-auto no-print">
-        Disediakan oleh Cikgu Am
-    </footer>
+            <!-- TAB: STATISTIK -->
+            <div id="tabStatistik" class="hidden bg-white rounded-lg shadow p-4 mb-6">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-xl font-bold">Laporan & Statistik</h2>
+                    <div class="flex gap-2">
+                        <input type="month" id="bulanStatistik" class="border p-2 rounded text-sm font-bold bg-gray-50">
+                        <button onclick="cetakPDF()" class="admin-only hidden bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded shadow" title="Muat Turun Laporan PDF">
+                            🖨️ Cetak PDF
+                        </button>
+                    </div>
+                </div>
+                
+                <p class="text-sm text-gray-500 mb-2">Ringkasan untuk bulan yang dipilih.</p>
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="p-2 border sticky-col">Nama Murid</th>
+                                <th class="p-2 border text-center bg-green-50 text-green-700">Hadir</th>
+                                <th class="p-2 border text-center bg-red-50 text-red-700">Tdk Hadir</th>
+                                <th class="p-2 border text-center bg-yellow-50 text-yellow-700">Cuti</th>
+                                <th class="p-2 border text-center bg-purple-50 text-purple-700">Pulang</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableStatistikRingkas">
+                            <!-- Injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
 
+                <h3 class="font-bold text-gray-700 mb-2">Matriks Kehadiran Harian (1-31 Hari Bulan)</h3>
+                <div class="overflow-x-auto border rounded bg-gray-50 p-2">
+                    <table class="w-full border-collapse text-xs text-center" id="matrixTable">
+                        <thead>
+                            <tr class="bg-blue-100" id="matrixHeader">
+                                <th class="p-1 border sticky-col w-48 text-left pl-2">Nama Murid</th>
+                                <!-- Hari 1-31 di-inject di sini -->
+                            </tr>
+                        </thead>
+                        <tbody id="matrixBody">
+                            <!-- Injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 flex gap-4 text-xs font-semibold justify-center">
+                    <span class="text-green-600">H = Hadir</span>
+                    <span class="text-red-600">TH = Tidak Hadir</span>
+                    <span class="text-yellow-600">C = Cuti</span>
+                    <span class="text-purple-600">P = Pulang Bermalam</span>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="bg-gray-800 text-white text-center p-4 mt-auto">
+            <p class="text-sm">Disediakan oleh Cikgu Am &copy; 2026</p>
+        </footer>
+    </div>
+
+    <!-- SKRIP LOGIK APLIKASI -->
     <script>
-        // ==========================================
-        // INITIALIZATION & UI
-        // ==========================================
-        document.addEventListener('DOMContentLoaded', () => {
-            // Set default date UI
-            document.getElementById('inputTarikh').value = selectedTarikh;
+        // Data Tempatan (Cache)
+        let dataMurid = [];
+        let dataKehadiran = [];
+        let currentUserRole = '';
+        
+        // Objek untuk pegang data yang sedang diubah SEBELUM butang Simpan ditekan
+        let rekodPending = {}; 
+
+        // Initial setup
+        document.addEventListener("DOMContentLoaded", () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tarikhKehadiran').value = today;
+            const currentMonth = today.substring(0, 7);
+            document.getElementById('bulanStatistik').value = currentMonth;
             
-            // Populate bulan dropdown
-            const selBulan = document.getElementById('selectBulan');
-            BULAN_NAMES.forEach((b, i) => {
-                selBulan.options.add(new Option(b, i + 1));
-            });
-            selBulan.value = selectedBulan;
-
-            // Populate tahun dropdown
-            const selTahun = document.getElementById('selectTahun');
-            const currentY = new Date().getFullYear();
-            for(let y = currentY - 1; y <= currentY + 2; y++) {
-                selTahun.options.add(new Option(y, y));
-            }
-            selTahun.value = selectedTahun;
-
-            // Fetch initial data
-            loadDataFromServer();
+            document.getElementById('tarikhKehadiran').addEventListener('change', renderSenaraiKehadiran);
+            document.getElementById('bulanStatistik').addEventListener('change', renderStatistik);
         });
 
+        function showLoading(msg) {
+            document.getElementById('loadingText').innerText = msg;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        // --- SISTEM LOG MASUK ---
+        function loginAs(role) {
+            if (role === 'admin') {
+                const user = document.getElementById('adminUser').value;
+                const pass = document.getElementById('adminPass').value;
+                if (user !== 'asrama2026' || pass !== '2026') {
+                    alert("ID atau Kata Laluan Salah!");
+                    return;
+                }
+            }
+            currentUserRole = role;
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('dashboardScreen').style.display = 'flex';
+            document.getElementById('userRoleDisplay').innerText = role === 'admin' ? 'PENTADBIR' : 'PENGGUNA BIASA';
+            
+            const adminEls = document.querySelectorAll('.admin-only');
+            adminEls.forEach(el => {
+                if (role === 'admin') el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+
+            fetchDataDariServer();
+        }
+
+        function logout() {
+            currentUserRole = '';
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('dashboardScreen').style.display = 'none';
+            document.getElementById('adminUser').value = '';
+            document.getElementById('adminPass').value = '';
+        }
+
+        // --- SISTEM TAB NAVIGATION ---
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(el => {
-                el.classList.remove('tab-active', 'text-blue-600');
-                el.classList.add('text-gray-500');
+            ['tabSenarai', 'tabKehadiran', 'tabStatistik'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            ['btnSenarai', 'btnKehadiran', 'btnStatistik'].forEach(id => {
+                document.getElementById(id).classList.remove('border-blue-600', 'text-blue-600');
+                document.getElementById(id).classList.add('border-transparent');
             });
             
             document.getElementById(tabId).classList.remove('hidden');
-            const activeBtn = document.getElementById('nav-' + tabId.replace('tab-', ''));
-            activeBtn.classList.remove('text-gray-500');
-            activeBtn.classList.add('tab-active');
+            const activeBtn = 'btn' + tabId.replace('tab', '');
+            document.getElementById(activeBtn).classList.remove('border-transparent');
+            document.getElementById(activeBtn).classList.add('border-blue-600', 'text-blue-600');
 
-            if(tabId === 'tab-kehadiran') renderKehadiranHarian();
-            if(tabId === 'tab-murid') renderSenaraiMurid();
-            if(tabId === 'tab-statistik') renderStatistik();
+            if(tabId === 'tabSenarai') renderSenaraiMurid();
+            if(tabId === 'tabKehadiran') renderSenaraiKehadiran();
+            if(tabId === 'tabStatistik') renderStatistik();
         }
 
-        function toggleLoading(show) {
-            const overlay = document.getElementById('loading-overlay');
-            if(show) overlay.classList.add('active');
-            else overlay.classList.remove('active');
-        }
-
-        // ==========================================
-        // DATA FETCHING (GOOGLE SHEETS VIA FETCH)
-        // ==========================================
-        async function loadDataFromServer() {
-            if(!SCRIPT_URL || SCRIPT_URL.includes("MASUKKAN")) {
-                alert("Sistem belum dihubungkan. Sila masukkan Web App URL Google Apps Script di dalam kod baris 16.");
+        // --- FETCH DATA DARI GOOGLE APPS SCRIPT ---
+        async function fetchDataDariServer() {
+            if (SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec")) {
+                alert("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec");
                 return;
             }
-
-            toggleLoading(true);
+            
+            showLoading("Memuat turun data...");
             try {
-                const response = await fetch(SCRIPT_URL + "?action=getData");
+                const response = await fetch(SCRIPT_URL + "?action=get_data");
                 const result = await response.json();
                 
-                appData.murid = result.murid || [];
-                appData.kehadiran = result.kehadiran || [];
+                dataMurid = result.murid || [];
+                dataKehadiran = result.kehadiran || [];
+                
+                dataMurid.sort((a,b) => a.nama.localeCompare(b.nama));
                 
                 renderSenaraiMurid();
-                renderKehadiranHarian();
-                if(!document.getElementById('tab-statistik').classList.contains('hidden')){
-                    renderStatistik();
-                }
-            } catch (error) {
-                console.error("Fetch Error: ", error);
-                alert("Gagal menghubungi pangkalan data Google Sheets. Sila semak capaian internet atau URL Web App.");
-            }
-            toggleLoading(false);
-        }
-
-        async function sendDataToServer(payload) {
-            toggleLoading(true);
-            try {
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain;charset=utf-8',
-                    },
-                    body: JSON.stringify(payload)
-                });
-                // Selesai hantar, reload data dari server
-                await loadDataFromServer();
-            } catch (error) {
-                console.error("POST Error: ", error);
-                alert("Gagal menyimpan data.");
-                toggleLoading(false);
+                hideLoading();
+            } catch (err) {
+                hideLoading();
+                alert("Gagal memuat turun data. Pastikan Web App URL betul dan 'Anyone' dibenarkan.");
             }
         }
 
-        // ==========================================
-        // MURID LOGIC
-        // ==========================================
-        function tambahMurid() {
-            const nama = document.getElementById('newMuridNama').value.trim();
-            const tahun = document.getElementById('newMuridTahun').value.trim();
-            
-            if(!nama || !tahun) {
-                alert("Sila masukkan nama penuh dan tahun/folder.");
-                return;
-            }
-
-            const payload = {
-                action: 'addMurid',
-                id: Date.now().toString(),
-                nama: nama,
-                tahun: tahun
-            };
-
-            // Reset input
-            document.getElementById('newMuridNama').value = '';
-            document.getElementById('newMuridTahun').value = '';
-
-            sendDataToServer(payload);
-        }
-
-        function padamMurid(id) {
-            if(confirm("Adakah anda pasti untuk memadam murid ini? Semua rekod kehadirannya mungkin kekal tetapi namanya tidak akan dipaparkan lagi.")) {
-                sendDataToServer({ action: 'deleteMurid', id: id });
-            }
-        }
-
+        // --- TAB 1: SENARAI MURID ---
         function renderSenaraiMurid() {
-            const tbody = document.getElementById('tbody-murid');
+            const tbody = document.getElementById('tableSenaraiMurid');
             tbody.innerHTML = '';
-            
-            if(appData.murid.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500">Tiada murid didaftarkan lagi.</td></tr>`;
-                return;
-            }
-
-            appData.murid.forEach((m, index) => {
+            dataMurid.forEach((m, index) => {
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 border-b";
                 tr.innerHTML = `
-                    <td class="p-3 text-center">${index + 1}</td>
-                    <td class="p-3 font-medium text-gray-800">${m.Nama}</td>
-                    <td class="p-3 text-gray-600">${m.Tahun}</td>
-                    <td class="p-3 text-center admin-only ${isAdmin ? '' : 'hidden'}">
-                        <button onclick="padamMurid('${m.ID}')" class="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <td class="p-2 border text-center">${index + 1}</td>
+                    <td class="p-2 border font-semibold">${m.nama}</td>
+                    <td class="p-2 border text-center">${m.tahun}</td>
+                    <td class="p-2 border text-center admin-only ${currentUserRole === 'admin' ? '' : 'hidden'}">
+                        <button onclick="padamMurid('${m.id}')" class="text-red-500 hover:bg-red-100 p-1 rounded font-bold">X Padam</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
-        // ==========================================
-        // KEHADIRAN LOGIC
-        // ==========================================
-        function changeTarikh() {
-            selectedTarikh = document.getElementById('inputTarikh').value;
-            renderKehadiranHarian();
-        }
+        async function tambahMurid() {
+            const nama = document.getElementById('newNama').value.trim().toUpperCase();
+            const tahun = document.getElementById('newTahun').value.trim().toUpperCase();
+            if(!nama) return alert("Sila masukkan nama murid.");
 
-        function updateStatus(muridId, newStatus) {
-            // Hantar ke Google Sheets secara real-time
-            const payload = {
-                action: 'updateKehadiran',
-                muridId: muridId,
-                tarikh: selectedTarikh,
-                status: newStatus
-            };
-            
-            // Kita render warna segera di UI supaya rasa pantas
-            const selectEl = document.querySelector(`.select-status[data-id="${muridId}"]`);
-            if(selectEl) applyStatusColor(selectEl, newStatus);
-            
-            sendDataToServer(payload);
-        }
-
-        function getStatusForDate(muridId, tarikh) {
-            const rekod = appData.kehadiran.find(k => k.MuridID == muridId && k.Tarikh == tarikh);
-            return rekod ? rekod.Status : '';
-        }
-
-        function applyStatusColor(selectElement, status) {
-            selectElement.className = "select-status border p-2 rounded-lg w-full outline-none font-medium text-sm transition ";
-            if(status === 'Hadir') selectElement.classList.add('status-hadir', 'border-green-300');
-            else if(status === 'Tidak Hadir') selectElement.classList.add('status-tidak-hadir', 'border-red-300');
-            else if(status === 'Cuti') selectElement.classList.add('status-cuti', 'border-yellow-300');
-            else if(status === 'Pulang Bermalam') selectElement.classList.add('status-pulang', 'border-purple-300');
-            else selectElement.classList.add('bg-gray-50', 'text-gray-600');
-        }
-
-        function renderKehadiranHarian() {
-            const tbody = document.getElementById('tbody-kehadiran');
-            tbody.innerHTML = '';
-
-            if(appData.murid.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500">Sila tambah murid di tab 'Senarai Murid' terlebih dahulu.</td></tr>`;
-                return;
-            }
-
-            appData.murid.forEach((m, index) => {
-                const currentStatus = getStatusForDate(m.ID, selectedTarikh);
+            showLoading("Merekod murid baharu...");
+            try {
+                const payload = { action: 'tambah_murid', nama: nama, tahun: tahun };
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
                 
+                if(res.status === 'success'){
+                    dataMurid.push({ id: res.id, nama: nama, tahun: tahun });
+                    dataMurid.sort((a,b) => a.nama.localeCompare(b.nama));
+                    document.getElementById('newNama').value = '';
+                    document.getElementById('newTahun').value = '';
+                    renderSenaraiMurid();
+                }
+            } catch(e) {
+                alert("Gagal. Sila periksa internet.");
+            }
+            hideLoading();
+        }
+
+        async function padamMurid(id) {
+            if(!confirm("Anda pasti mahu memadam murid ini secara kekal?")) return;
+            showLoading("Memadam data...");
+            try {
+                const payload = { action: 'padam_murid', id: id };
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                if(res.status === 'success'){
+                    dataMurid = dataMurid.filter(m => m.id !== id);
+                    renderSenaraiMurid();
+                }
+            } catch(e) {}
+            hideLoading();
+        }
+
+        // --- TAB 2: KEHADIRAN (TIADA LOADING PADA DROPDOWN) ---
+        function renderSenaraiKehadiran() {
+            const tbody = document.getElementById('tableRekodKehadiran');
+            const tarikhPilihan = document.getElementById('tarikhKehadiran').value;
+            tbody.innerHTML = '';
+            rekodPending = {}; 
+
+            const kehadiranHariIni = dataKehadiran.filter(k => k.tarikh === tarikhPilihan);
+            const mapKehadiran = {};
+            kehadiranHariIni.forEach(k => { mapKehadiran[k.id] = k.status; });
+
+            dataMurid.forEach((m, idx) => {
+                const statusSemasa = mapKehadiran[m.id] || '';
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50 border-b";
+                
+                let colorClass = 'status-default';
+                if(statusSemasa === 'Hadir') colorClass = 'status-hadir';
+                if(statusSemasa === 'Tidak Hadir') colorClass = 'status-tidak-hadir';
+                if(statusSemasa === 'Cuti') colorClass = 'status-cuti';
+                if(statusSemasa === 'Pulang Bermalam') colorClass = 'status-pulang';
+
+                // onchange panggil fungsi simpanDalamMemory sahaja, sangat laju.
                 tr.innerHTML = `
-                    <td class="p-3 text-center">${index + 1}</td>
-                    <td class="p-3 font-medium text-gray-800">${m.Nama}</td>
-                    <td class="p-3 text-sm text-gray-600">${m.Tahun}</td>
-                    <td class="p-3">
-                        <select onchange="updateStatus('${m.ID}', this.value)" data-id="${m.ID}" class="select-status border p-2 rounded-lg w-full font-medium text-sm">
-                            <option value="" disabled ${!currentStatus ? 'selected' : ''}>-- Sila Pilih --</option>
-                            <option value="Hadir" ${currentStatus === 'Hadir' ? 'selected' : ''}>Hadir</option>
-                            <option value="Tidak Hadir" ${currentStatus === 'Tidak Hadir' ? 'selected' : ''}>Tidak Hadir</option>
-                            <option value="Cuti" ${currentStatus === 'Cuti' ? 'selected' : ''}>Cuti</option>
-                            <option value="Pulang Bermalam" ${currentStatus === 'Pulang Bermalam' ? 'selected' : ''}>Pulang Bermalam</option>
+                    <td class="p-2 border text-center">${idx + 1}</td>
+                    <td class="p-2 border font-semibold">${m.nama}</td>
+                    <td class="p-2 border text-center">
+                        <select onchange="simpanDalamMemory('${m.id}', '${m.nama}', this)" 
+                                class="w-full p-2 border rounded font-bold outline-none cursor-pointer ${colorClass}">
+                            <option value="" class="bg-white text-black">Sila Pilih</option>
+                            <option value="Hadir" class="bg-white text-green-700 font-bold" ${statusSemasa === 'Hadir' ? 'selected' : ''}>✔ Hadir</option>
+                            <option value="Tidak Hadir" class="bg-white text-red-700 font-bold" ${statusSemasa === 'Tidak Hadir' ? 'selected' : ''}>✖ Tidak Hadir</option>
+                            <option value="Cuti" class="bg-white text-yellow-700 font-bold" ${statusSemasa === 'Cuti' ? 'selected' : ''}>🏖 Cuti</option>
+                            <option value="Pulang Bermalam" class="bg-white text-purple-700 font-bold" ${statusSemasa === 'Pulang Bermalam' ? 'selected' : ''}>🏠 Pulang Bermalam</option>
                         </select>
                     </td>
                 `;
                 tbody.appendChild(tr);
-                
-                // Set initial color
-                applyStatusColor(tr.querySelector('select'), currentStatus);
             });
         }
 
-        // ==========================================
-        // STATISTIK LOGIC
-        // ==========================================
-        function getDaysInMonth(month, year) {
-            return new Date(year, month, 0).getDate();
-        }
-
-        function renderStatistik() {
-            const vBulan = parseInt(document.getElementById('selectBulan').value);
-            const vTahun = parseInt(document.getElementById('selectTahun').value);
-            const strBulan = vBulan.toString().padStart(2, '0');
-            const prefixYM = `${vTahun}-${strBulan}-`;
+        // FUNGSI TUKAR WARNA SERTA-MERTA (Tanpa loading server)
+        function simpanDalamMemory(idMurid, namaMurid, selectElement) {
+            const status = selectElement.value;
             
-            let countH = 0, countTH = 0, countC = 0, countP = 0;
-            const daysInMonth = getDaysInMonth(vBulan, vTahun);
-
-            // Tapis data kehadiran mengikut bulan yang dipilih
-            const bulanRecords = appData.kehadiran.filter(k => k.Tarikh.startsWith(`${vTahun}-${strBulan}`));
+            selectElement.classList.remove('status-default', 'status-hadir', 'status-tidak-hadir', 'status-cuti', 'status-pulang');
             
-            bulanRecords.forEach(r => {
-                if(r.Status === 'Hadir') countH++;
-                else if(r.Status === 'Tidak Hadir') countTH++;
-                else if(r.Status === 'Cuti') countC++;
-                else if(r.Status === 'Pulang Bermalam') countP++;
-            });
+            if(status === 'Hadir') selectElement.classList.add('status-hadir');
+            else if(status === 'Tidak Hadir') selectElement.classList.add('status-tidak-hadir');
+            else if(status === 'Cuti') selectElement.classList.add('status-cuti');
+            else if(status === 'Pulang Bermalam') selectElement.classList.add('status-pulang');
+            else selectElement.classList.add('status-default');
 
-            // Kemaskini kad rumusan
-            document.getElementById('stat-hadir').innerText = countH;
-            document.getElementById('stat-th').innerText = countTH;
-            document.getElementById('stat-cuti').innerText = countC;
-            document.getElementById('stat-pulang').innerText = countP;
-
-            // Generate Calendar Matrix
-            const thead = document.getElementById('thead-matriks');
-            const tbody = document.getElementById('tbody-matriks');
-            
-            // Bina Header Matriks (1 to 31)
-            let headerHTML = `<tr>
-                <th class="p-2 border font-semibold text-gray-700 sticky left-0 bg-gray-100 z-10 w-48">Nama Murid</th>`;
-            for(let d = 1; d <= daysInMonth; d++) {
-                headerHTML += `<th class="p-2 border text-center w-8 text-xs font-semibold">${d}</th>`;
+            if(status !== "") {
+                rekodPending[idMurid] = { id: idMurid, nama: namaMurid, status: status };
+            } else {
+                delete rekodPending[idMurid];
             }
-            headerHTML += `<th class="p-2 border text-center font-semibold bg-green-50">%</th></tr>`;
-            thead.innerHTML = headerHTML;
+        }
 
-            // Bina Body Matriks
-            tbody.innerHTML = '';
-            if(appData.murid.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="${daysInMonth + 2}" class="p-4 text-center">Tiada data murid.</td></tr>`;
+        // BUTANG SIMPAN PUKAL
+        async function simpanSemuaKehadiran() {
+            const tarikh = document.getElementById('tarikhKehadiran').value;
+            if(!tarikh) return alert("Sila pastikan tarikh dipilih.");
+            
+            const senaraiSimpan = Object.values(rekodPending);
+            
+            if(senaraiSimpan.length === 0) {
+                alert("Tiada rekod baru yang diubah untuk disimpan.");
                 return;
             }
 
-            appData.murid.forEach(m => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-50";
-                
-                let rowHTML = `<td class="p-2 border text-sm font-medium sticky left-0 bg-white z-10 shadow-[1px_0_0_0_#e5e7eb]">${m.Nama}</td>`;
-                
-                let muridHadirCount = 0;
-                let muridTotalBekerja = 0;
+            showLoading("Menyimpan rekod ke Google Sheets...");
+            
+            try {
+                const payload = {
+                    action: 'simpan_pukal',
+                    tarikh: tarikh,
+                    data: senaraiSimpan
+                };
 
-                for(let d = 1; d <= daysInMonth; d++) {
-                    const checkDate = `${prefixYM}${d.toString().padStart(2, '0')}`;
-                    const status = getStatusForDate(m.ID, checkDate);
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                
+                const res = await response.json();
+                if(res.status === 'success') {
+                    senaraiSimpan.forEach(baru => {
+                        const index = dataKehadiran.findIndex(k => k.id === baru.id && k.tarikh === tarikh);
+                        if(index > -1) {
+                            dataKehadiran[index].status = baru.status;
+                        } else {
+                            dataKehadiran.push({ id: baru.id, nama: baru.nama, tarikh: tarikh, status: baru.status });
+                        }
+                    });
                     
-                    let cellUI = `<span class="text-gray-300">-</span>`;
-                    
-                    if(status === 'Hadir') {
-                        cellUI = `<div class="mx-auto w-5 h-5 rounded flex items-center justify-center bg-green-100 text-green-700 font-bold text-xs">H</div>`;
-                        muridHadirCount++;
-                        muridTotalBekerja++;
-                    } else if(status === 'Tidak Hadir') {
-                        cellUI = `<div class="mx-auto w-5 h-5 rounded flex items-center justify-center bg-red-100 text-red-700 font-bold text-xs">TH</div>`;
-                        muridTotalBekerja++;
-                    } else if(status === 'Cuti') {
-                        cellUI = `<div class="mx-auto w-5 h-5 rounded flex items-center justify-center bg-yellow-100 text-yellow-700 font-bold text-xs">C</div>`;
-                    } else if(status === 'Pulang Bermalam') {
-                        cellUI = `<div class="mx-auto w-5 h-5 rounded flex items-center justify-center bg-purple-100 text-purple-700 font-bold text-xs">P</div>`;
-                    }
-
-                    rowHTML += `<td class="p-1 border text-center">${cellUI}</td>`;
+                    rekodPending = {};
+                    alert("Berjaya! Semua rekod telah disimpan ke Google Sheets.");
+                } else {
+                    alert("Ralat Server: " + res.message);
                 }
+            } catch(e) {
+                alert("Gagal menyimpan. Sila semak sambungan internet anda.");
+            }
+            hideLoading();
+        }
 
-                // Kalkulasi peratusan kehadiran per murid
-                let peratus = 0;
-                if(muridTotalBekerja > 0) peratus = Math.round((muridHadirCount / muridTotalBekerja) * 100);
+        // --- TAB 3: STATISTIK ---
+        function renderStatistik() {
+            const bulan = document.getElementById('bulanStatistik').value;
+            if(!bulan) return;
+            
+            const [thn, bln] = bulan.split('-');
+            const rekodBulan = dataKehadiran.filter(k => k.tarikh.startsWith(bulan));
+            
+            const tbodyRingkas = document.getElementById('tableStatistikRingkas');
+            tbodyRingkas.innerHTML = '';
+
+            const hariDalamBulan = new Date(thn, bln, 0).getDate();
+            const matrixHead = document.getElementById('matrixHeader');
+            matrixHead.innerHTML = '<th class="p-1 border sticky-col bg-blue-100 z-10 w-48 text-left pl-2">Nama Murid</th>';
+            for(let i=1; i<=hariDalamBulan; i++) {
+                matrixHead.innerHTML += `<th class="p-1 border min-w-[25px]">${i}</th>`;
+            }
+
+            const matrixBody = document.getElementById('matrixBody');
+            matrixBody.innerHTML = '';
+
+            dataMurid.forEach(m => {
+                let statH = 0, statTH = 0, statC = 0, statP = 0;
+                let rekodMuridIni = rekodBulan.filter(k => k.id === m.id);
                 
-                rowHTML += `<td class="p-2 border text-center font-bold text-sm bg-green-50">${peratus}%</td>`;
+                let mapHarian = {};
+                rekodMuridIni.forEach(k => {
+                    const hari = parseInt(k.tarikh.split('-')[2]);
+                    mapHarian[hari] = k.status;
+                    if(k.status === 'Hadir') statH++;
+                    if(k.status === 'Tidak Hadir') statTH++;
+                    if(k.status === 'Cuti') statC++;
+                    if(k.status === 'Pulang Bermalam') statP++;
+                });
+
+                const trR = document.createElement('tr');
+                trR.innerHTML = `
+                    <td class="p-2 border font-semibold sticky-col">${m.nama}</td>
+                    <td class="p-2 border text-center font-bold text-green-700">${statH}</td>
+                    <td class="p-2 border text-center font-bold text-red-700">${statTH}</td>
+                    <td class="p-2 border text-center font-bold text-yellow-700">${statC}</td>
+                    <td class="p-2 border text-center font-bold text-purple-700">${statP}</td>
+                `;
+                tbodyRingkas.appendChild(trR);
+
+                const trM = document.createElement('tr');
+                trM.classList.add('bg-white', 'hover:bg-gray-100');
+                let rowHtml = `<td class="p-1 border sticky-col bg-white text-left pl-2 truncate" title="${m.nama}">${m.nama}</td>`;
                 
-                tr.innerHTML = rowHTML;
-                tbody.appendChild(tr);
+                for(let i=1; i<=hariDalamBulan; i++) {
+                    let st = mapHarian[i];
+                    let sim = "-", bg = "";
+                    if(st === 'Hadir') { sim = "H"; bg = "bg-green-100 text-green-800 font-bold"; }
+                    if(st === 'Tidak Hadir') { sim = "TH"; bg = "bg-red-100 text-red-800 font-bold"; }
+                    if(st === 'Cuti') { sim = "C"; bg = "bg-yellow-100 text-yellow-800 font-bold"; }
+                    if(st === 'Pulang Bermalam') { sim = "P"; bg = "bg-purple-100 text-purple-800 font-bold"; }
+                    rowHtml += `<td class="p-1 border ${bg}">${sim}</td>`;
+                }
+                trM.innerHTML = rowHtml;
+                matrixBody.appendChild(trM);
             });
         }
 
-        // ==========================================
-        // AUTH & PRINT
-        // ==========================================
-        function toggleLogin() {
-            const psw = prompt("Sila masukkan kata laluan pentadbir:");
-            if(psw === "2026") {
-                isAdmin = true;
-                document.getElementById('btnLogin').classList.add('hidden');
-                document.getElementById('adminBadge').classList.remove('hidden');
-                document.getElementById('btnPrint').classList.remove('hidden');
-                
-                document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
-                alert("Log masuk berjaya. Mod Pentadbir diaktifkan.");
-            } else if(psw !== null) {
-                alert("Kata laluan salah.");
-            }
-        }
-
-        function logoutAdmin() {
-            isAdmin = false;
-            document.getElementById('btnLogin').classList.remove('hidden');
-            document.getElementById('adminBadge').classList.add('hidden');
-            document.getElementById('btnPrint').classList.add('hidden');
+        // --- CETAK PDF ---
+        function cetakPDF() {
+            window.jsPDF = window.jspdf.jsPDF;
+            const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
             
-            document.querySelectorAll('.admin-only').forEach(el => el.classList.add('hidden'));
-        }
-
-        function printLaporan() {
-            const vBulan = document.getElementById('selectBulan');
-            const vTahun = document.getElementById('selectTahun').value;
-            const namaBulan = vBulan.options[vBulan.selectedIndex].text;
+            const bulan = document.getElementById('bulanStatistik').value;
+            doc.setFontSize(14);
+            doc.text("LAPORAN KEHADIRAN ASRAMA SKPK - BULAN: " + bulan, 10, 15);
             
-            // Tambah tajuk khusus untuk cetakan
-            const container = document.getElementById('tab-statistik');
-            const printHeader = document.createElement('div');
-            printHeader.className = "hidden print:block text-center mb-6";
-            printHeader.innerHTML = `
-                <h1 class="text-2xl font-bold uppercase">Laporan Kehadiran Asrama SKPK</h1>
-                <h2 class="text-xl">Bulan ${namaBulan} ${vTahun}</h2>
-                <hr class="my-4 border-2 border-black">
-            `;
-            container.insertBefore(printHeader, container.firstChild);
-            
-            // Trigger cetak PDF (Landscape)
-            window.print();
-            
-            // Buang semula tajuk cetakan
-            container.removeChild(printHeader);
+            doc.setFontSize(9);
+            doc.html(document.getElementById('matrixTable'), {
+                x: 5, y: 20,
+                html2canvas: { scale: 0.22 },
+                callback: function(doc) {
+                    doc.save(`Laporan_Asrama_${bulan}.pdf`);
+                }
+            });
         }
     </script>
 </body>
