@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kehadiran Asrama SKPK</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         /* Loading Overlay Style */
         #loadingOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
@@ -38,7 +37,6 @@
     <!-- Login Screen -->
     <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
         <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
-            <!-- Logo telah dibuang dari sini -->
             <h1 class="text-2xl font-bold text-gray-800 mb-2">SISTEM KEHADIRAN MBPK</h1>
             <h2 class="text-lg text-gray-600 mb-6">Asrama SK Pendidikan Khas</h2>
             
@@ -137,8 +135,8 @@
                     <h2 class="text-xl font-bold">Laporan & Statistik</h2>
                     <div class="flex gap-2">
                         <input type="month" id="bulanStatistik" class="border p-2 rounded text-sm font-bold bg-gray-50">
-                        <button onclick="cetakPDF()" class="admin-only hidden bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded shadow" title="Muat Turun Laporan PDF">
-                            🖨️ Cetak PDF
+                        <button onclick="cetakPDF()" class="admin-only hidden bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded shadow font-bold" title="Cetak / Muat Turun Laporan">
+                            🖨️ Cetak / Simpan PDF
                         </button>
                     </div>
                 </div>
@@ -221,6 +219,16 @@
 
         // --- SISTEM LOG MASUK ---
         function loginAs(role) {
+            // HALANG JIKA URL KOSONG ATAU SALAH SEBELUM SEMPAT LOGIN
+            if (SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec")) {
+                alert("Sila masukkan URL Web App Google Script anda di baris ke-21 kod aplikasi terlebih dahulu.");
+                return;
+            }
+            if (!SCRIPT_URL.includes("/macros/s/")) {
+                alert("RALAT PENTING!\n\nPautan (URL) yang Cikgu masukkan SALAH. Cikgu telah letakkan pautan editor/Google Sheets biasa.\n\nSila pastikan Cikgu salin 'Web App URL' yang bermula dengan: https://script.google.com/macros/s/.../exec\n\n(Dapatkan URL ini dari butang Deploy > New Deployment)");
+                return;
+            }
+
             if (role === 'admin') {
                 const user = document.getElementById('adminUser').value;
                 const pass = document.getElementById('adminPass').value;
@@ -271,47 +279,29 @@
             if(tabId === 'tabStatistik') renderStatistik();
         }
 
-        // --- FETCH DATA DARI GOOGLE APPS SCRIPT DENGAN ANTI-CACHE & PENGESAN RALAT ---
+        // --- FETCH DATA DARI GOOGLE APPS SCRIPT ---
         async function fetchDataDariServer() {
-            if (SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec")) {
-                alert("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec");
-                return;
-            }
-            
-            // Pengesan pautan salah (Google Sheets link)
-            if (SCRIPT_URL.includes("docs.google.com/spreadsheets")) {
-                alert("RALAT MAKLUMAT PANGKALAN: Cikgu telah meletakkan pautan fail Google Sheets. Sila pastikan Cikgu meletakkan 'Web App URL' yang bermula dengan https://script.google.com/...");
-                return;
-            }
-            
             showLoading("Memuat turun rekod dari server...");
             try {
-                // Tambah &t= untuk halang browser menyimpan cache lama
                 const urlWithParam = SCRIPT_URL + "?action=get_data&t=" + new Date().getTime();
                 const response = await fetch(urlWithParam);
-                
-                // Baca respon sebagai teks dahulu untuk periksa kod HTML yang bocor
                 const textResult = await response.text(); 
                 
                 try {
                     const result = JSON.parse(textResult);
-                    
                     dataMurid = result.murid || [];
                     dataKehadiran = result.kehadiran || [];
-                    
                     dataMurid.sort((a,b) => a.nama.localeCompare(b.nama));
                     
                     renderSenaraiMurid();
                     hideLoading();
                 } catch (jsonErr) {
                     hideLoading();
-                    console.error("Ralat JSON. Server membalas HTML/Teks:", textResult);
-                    alert("DATA GAGAL DIMUAT TURUN: Terdapat masalah dari Google Apps Script. Cikgu wajib pergi ke fail Code.gs, klik butang Deploy -> pilih New Deployment (Bukan Manage) -> Pastikan akses disetkan kepada 'Anyone'. Sila rujuk mesej AI untuk lebih lanjut.");
+                    alert("RALAT PANGKALAN DATA!\n\nSistem mengesan Cikgu terlupa setting 'Anyone' masa buat Deploy di Apps Script.\n\nSila buka Apps Script > Deploy > New Deployment > Pastikan 'Who has access' ditukar kepada 'Anyone'. Kemudian copy URL Web App yang baru itu dan paste ke dalam kod baris 21.");
                 }
             } catch (err) {
                 hideLoading();
-                alert("Gagal menyambung ke server. Sila semak pautan Web App URL Cikgu.");
-                console.error(err);
+                alert("Gagal menyambung ke server. Sila semak sambungan internet atau Web App URL.");
             }
         }
 
@@ -399,7 +389,6 @@
                 if(statusSemasa === 'Cuti') colorClass = 'status-cuti';
                 if(statusSemasa === 'Pulang Bermalam') colorClass = 'status-pulang';
 
-                // onchange panggil fungsi simpanDalamMemory sahaja, sangat laju.
                 tr.innerHTML = `
                     <td class="p-2 border text-center">${idx + 1}</td>
                     <td class="p-2 border font-semibold">${m.nama}</td>
@@ -548,23 +537,69 @@
             });
         }
 
-        // --- CETAK PDF ---
+        // --- CETAK PDF (VERSI BAHARU YANG LEBIH SELAMAT DAN STABIL) ---
         function cetakPDF() {
-            window.jsPDF = window.jspdf.jsPDF;
-            const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-            
             const bulan = document.getElementById('bulanStatistik').value;
-            doc.setFontSize(14);
-            doc.text("LAPORAN KEHADIRAN ASRAMA SKPK - BULAN: " + bulan, 10, 15);
+            if(!bulan) return alert("Sila pilih bulan terlebih dahulu.");
+
+            // Ambil jadual ringkas dan matriks dari skrin
+            const ringkasanHTML = document.getElementById('tableStatistikRingkas').parentNode.outerHTML;
+            const matriksHTML = document.getElementById('matrixTable').outerHTML;
             
-            doc.setFontSize(9);
-            doc.html(document.getElementById('matrixTable'), {
-                x: 5, y: 20,
-                html2canvas: { scale: 0.22 },
-                callback: function(doc) {
-                    doc.save(`Laporan_Asrama_${bulan}.pdf`);
-                }
-            });
+            // Buka tetingkap/tab baharu khusus untuk cetakan
+            const printWindow = window.open('', '_blank');
+            if(!printWindow) return alert("Sila benarkan 'Pop-ups' pada browser anda untuk fungsi cetak.");
+
+            // Susun dokumen cetakan HTML yang sangat ringan dan kemas (A4 Landscape)
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Laporan Kehadiran - ${bulan}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; color: #000; }
+                        h2, h3 { text-align: center; margin-bottom: 10px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 11px; }
+                        th, td { border: 1px solid #000; padding: 5px; text-align: center; }
+                        .sticky-col { text-align: left; font-weight: bold; width: 150px; }
+                        .text-left { text-align: left; }
+                        .bg-blue-100 { background-color: #dbeafe !important; -webkit-print-color-adjust: exact; }
+                        .bg-gray-100 { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; }
+                        
+                        /* Format Kertas Mendatar Semasa Diprint */
+                        @page { size: A4 landscape; margin: 10mm; }
+                        @media print {
+                            body { padding: 0; }
+                            button { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h2>LAPORAN KEHADIRAN MBPK ASRAMA SKPK</h2>
+                    <h3>Bulan: ${bulan}</h3>
+                    
+                    <h3 style="text-align:left; font-size:14px; margin-top:20px;">Ringkasan Keseluruhan</h3>
+                    ${ringkasanHTML}
+
+                    <h3 style="text-align:left; font-size:14px; margin-top:30px;">Matriks Kehadiran Harian</h3>
+                    ${matriksHTML}
+
+                    <div style="margin-top:20px; font-size:12px; font-weight:bold; text-align:center;">
+                        Petunjuk: H (Hadir) &nbsp;|&nbsp; TH (Tidak Hadir) &nbsp;|&nbsp; C (Cuti) &nbsp;|&nbsp; P (Pulang Bermalam) &nbsp;|&nbsp; - (Tiada Rekod)
+                    </div>
+
+                    <script>
+                        // Arahkan browser untuk cetak/save as PDF secara automatik
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                                // Tetingkap ditutup sendiri selepas selesai
+                            }, 500);
+                        }
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
         }
     </script>
 </body>
