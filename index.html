@@ -271,28 +271,47 @@
             if(tabId === 'tabStatistik') renderStatistik();
         }
 
-        // --- FETCH DATA DARI GOOGLE APPS SCRIPT ---
+        // --- FETCH DATA DARI GOOGLE APPS SCRIPT DENGAN ANTI-CACHE & PENGESAN RALAT ---
         async function fetchDataDariServer() {
             if (SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec")) {
                 alert("https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec");
                 return;
             }
             
-            showLoading("Memuat turun data...");
+            // Pengesan pautan salah (Google Sheets link)
+            if (SCRIPT_URL.includes("docs.google.com/spreadsheets")) {
+                alert("RALAT MAKLUMAT PANGKALAN: Cikgu telah meletakkan pautan fail Google Sheets. Sila pastikan Cikgu meletakkan 'Web App URL' yang bermula dengan https://script.google.com/...");
+                return;
+            }
+            
+            showLoading("Memuat turun rekod dari server...");
             try {
-                const response = await fetch(SCRIPT_URL + "?action=get_data");
-                const result = await response.json();
+                // Tambah &t= untuk halang browser menyimpan cache lama
+                const urlWithParam = SCRIPT_URL + "?action=get_data&t=" + new Date().getTime();
+                const response = await fetch(urlWithParam);
                 
-                dataMurid = result.murid || [];
-                dataKehadiran = result.kehadiran || [];
+                // Baca respon sebagai teks dahulu untuk periksa kod HTML yang bocor
+                const textResult = await response.text(); 
                 
-                dataMurid.sort((a,b) => a.nama.localeCompare(b.nama));
-                
-                renderSenaraiMurid();
-                hideLoading();
+                try {
+                    const result = JSON.parse(textResult);
+                    
+                    dataMurid = result.murid || [];
+                    dataKehadiran = result.kehadiran || [];
+                    
+                    dataMurid.sort((a,b) => a.nama.localeCompare(b.nama));
+                    
+                    renderSenaraiMurid();
+                    hideLoading();
+                } catch (jsonErr) {
+                    hideLoading();
+                    console.error("Ralat JSON. Server membalas HTML/Teks:", textResult);
+                    alert("DATA GAGAL DIMUAT TURUN: Terdapat masalah dari Google Apps Script. Cikgu wajib pergi ke fail Code.gs, klik butang Deploy -> pilih New Deployment (Bukan Manage) -> Pastikan akses disetkan kepada 'Anyone'. Sila rujuk mesej AI untuk lebih lanjut.");
+                }
             } catch (err) {
                 hideLoading();
-                alert("Gagal memuat turun data. Pastikan Web App URL betul dan 'Anyone' dibenarkan.");
+                alert("Gagal menyambung ke server. Sila semak pautan Web App URL Cikgu.");
+                console.error(err);
             }
         }
 
