@@ -193,9 +193,10 @@
         </footer>
     </div>
 
+    <!-- SKRIP LOGIK APLIKASI -->
     <script>
         // MASUKKAN URL CIKGU YANG TEPAT
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw2ukBDAE4qHpSabNEu6Tw3HSbw_24FxfJbq3poGeLO9FwN5lS932krw5DoyPuFCoBLnA/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVjn_9x22s0JLRx9aBZOmFR48pu1VEbbNurIfgcpyayMYp3Rms1HH0_iIo3cAUsYmN-A/exec";
 
         // Data Tempatan (Cache)
         let dataMurid = [];
@@ -205,19 +206,22 @@
 
         // --- SISTEM MODAL (PENGGANTI ALERT/CONFIRM YANG CRASH) ---
         let confirmCallback = null;
-        function showModal(title, msg, isConfirm = false, callback = null) {
+        
+        function showModal(title, message, isConfirm = false, onConfirm = null) {
             document.getElementById('modalTitle').innerText = title;
-            document.getElementById('modalMessage').innerText = msg;
-            const btns = document.getElementById('modalButtons');
+            document.getElementById('modalMessage').innerHTML = message;
             
+            const btnContainer = document.getElementById('modalButtons');
             if(isConfirm) {
-                confirmCallback = callback;
-                btns.innerHTML = `
-                    <button onclick="closeModal()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-bold transition">Batal</button>
-                    <button onclick="executeConfirm()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-bold transition">Ya, Padam</button>
+                confirmCallback = onConfirm;
+                btnContainer.innerHTML = `
+                    <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded font-bold transition">Batal</button>
+                    <button onclick="executeConfirm()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-bold transition">Ya, Pasti</button>
                 `;
             } else {
-                btns.innerHTML = `<button onclick="closeModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition">Tutup</button>`;
+                btnContainer.innerHTML = `
+                    <button onclick="closeModal()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition">OK</button>
+                `;
             }
             document.getElementById('customModal').classList.remove('hidden');
         }
@@ -232,7 +236,25 @@
             closeModal();
         }
 
-        // --- LOADING SYSTEM ---
+        // Initial setup
+        document.addEventListener("DOMContentLoaded", () => {
+            // BETULKAN ISU ZON MASA (TIMEZONE) MALAYSIA
+            // Mengambil masa peranti Cikgu (Bukan masa UTC)
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            
+            const today = `${year}-${month}-${day}`; // Format YYYY-MM-DD
+            const currentMonth = `${year}-${month}`; // Format YYYY-MM
+            
+            document.getElementById('tarikhKehadiran').value = today;
+            document.getElementById('bulanStatistik').value = currentMonth;
+            
+            document.getElementById('tarikhKehadiran').addEventListener('change', renderSenaraiKehadiran);
+            document.getElementById('bulanStatistik').addEventListener('change', renderStatistik);
+        });
+
         function showLoading(msg) {
             document.getElementById('loadingText').innerText = msg;
             document.getElementById('loadingOverlay').style.display = 'flex';
@@ -240,16 +262,6 @@
         function hideLoading() {
             document.getElementById('loadingOverlay').style.display = 'none';
         }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('tarikhKehadiran').value = today;
-            const currentMonth = today.substring(0, 7);
-            document.getElementById('bulanStatistik').value = currentMonth;
-            
-            document.getElementById('tarikhKehadiran').addEventListener('change', renderSenaraiKehadiran);
-            document.getElementById('bulanStatistik').addEventListener('change', renderStatistik);
-        });
 
         function loginAs(role) {
             if (role === 'admin') {
